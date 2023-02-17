@@ -1,4 +1,4 @@
-gai_conglomerate_sectors <- function(dftemp){
+gai_conglomerate_sectors <- function(dftemp, nm = NA){
   df_list <- list()
   i = 1
   for(yr in unique(dftemp$year)[order(unique(dftemp$year))]){
@@ -21,6 +21,3 @@ gai_conglomerate_sectors <- function(dftemp){
   }
   return(tt)
 }
-
-tt = gai_conglomerate_sectors(dftemp = temp)
-View(tt)
