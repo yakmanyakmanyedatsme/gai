@@ -29,7 +29,7 @@ bucket_info <- gcs_get_bucket("corporate-finance-data-2")
 objects <- gcs_list_objects("corporate-finance-data-2")
 print(objects)
 #####Check if Data Folder Exists#####
-gcs_get_object(nm, saveToDisk = file.path(wd,"data","gai_factors_data_segments.csv"))
+gcs_get_object("gai_factors_data_segments.csv", saveToDisk = file.path(wd,"data","gai_factors_data_segments.csv"))
 #dt = fread(file.path(wd,"data","boardex_individual_profiles_employment.csv"))
 #source(file.path(wd,"functions","gai_industries_conglomerate.R"))
 #temp2 <- merge(temp,gai_conglomerate_sectors(dftemp = temp), by = c("directorid","year"))
