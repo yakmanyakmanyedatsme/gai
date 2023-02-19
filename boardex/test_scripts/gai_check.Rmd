@@ -1,0 +1,57 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+rm(list=ls())
+```
+
+
+```{r}
+library("haven")
+library("dplyr")
+library("data.table")
+```
+
+```{r}
+#
+`%!in%` <- Negate(`%in%`)
+df <- fread("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_data_segments_sic.csv")
+ids = unique(df$directorid)[1:5]
+dftemp <- df %>% filter(orgtype == "Quoted" | directorid == 1197930)
+dftemp2 <- data.table(head(dftemp,100000))
+dftemp3 <- df %>% filter(directorid == 1197930)
+dftemp2 <- data.table(rbind(dftemp2,dftemp3))
+```
+
+Read in data
+
+```{r}
+gai <- read_dta("C:\\Users\\wfran\\Dropbox\\Research Projects\\Banking\\Projects\\generalist vs specialist and bank risk taking\\Data\\preliminary\\gai_with_components_1992_2016.dta")
+execucomp <- read_dta("C:\\Users\\wfran\\Dropbox\\Data\\Compustat\\Execucomp\\dta\\Annual_Compensation_Execucomp.dta")
+colnames(execucomp) <- tolower(colnames(execucomp))
+bhc <- read_dta("C:\\Users\\wfran\\Dropbox\\Research Projects\\Banking\\Data\\BHC\\bhc_select_with_ids.dta")
+```
+
+```{r}
+execucomp <- execucomp %>% mutate(execid = as.numeric(execid))
+execucomp <- execucomp %>% mutate(gvkey = as.numeric(gvkey))
+execucomp_ceo <- execucomp %>% filter(ceoann == "CEO")
+dt <- merge(gai,execucomp_ceo, by=c("gvkey","execid","year"))
+dt <- dt %>% select(gvkey, execid,exec_fullname, titleann ,year, Pastceodum, Countsic4, Countpastfirms, Countpastpos, Ceodivdummypp, GAI)
+dtceo <- merge(dftemp, dt,by=c("gvkey","year"))
+
+```
+
+```{r}
+source("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\projects\\extract ceos\\functions\\split_rolename.R")
+dt_ceo <- splt_role_name(dtceo)
+dt_ceo <- dt_ceo %>% filter(rolename == "CEO")
+dtceo$exec_fullname[1]
+dtceo$directorname[1]
+```
+```{r}
+View(dtceo %>% select(gvkey, execid,exec_fullname, directorname4, titleann ,year, Pastceodum, Countsic4, Countpastfirms.x,Countpastfirms.y, Countpastpos, Countpastpositions,Ceodivdummypp, GAI))
+```
+

@@ -1,4 +1,4 @@
-split_list <- function(temp_lst, splt = 4500){
+split_list <- function(temp_lst, splt = 10){
   library(future.apply)
   plan(multisession)
   options(future.globals.maxSize= 6891289600)

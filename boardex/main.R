@@ -21,7 +21,7 @@ print("the setwd worked")
 ######GCE Authentication#######
 a = Sys.time()
 Sys.setenv("GCS_AUTH_FILE" = authfile)
-Sys.setenv("GCS_DEFAULT_BUCKET"="corporate-finance-data")
+Sys.setenv("GCS_DEFAULT_BUCKET"="corporate-finance-data-2")
 gcs_auth(email = "wakaflocka12211@gmail.com")
 gcs_global_bucket("corporate-finance-data-2")
 #####GCE Boardex#####
@@ -36,24 +36,44 @@ if(skp_splt_ind == F){
   if(!file.exists(file.path(wd,"data"))){
     dir.create(file.path(wd,"data"))
   }
-  if(!file.exists(file.path(wd,"data","boardex_individual_profiles_employment.dta"))){
-    gcs_get_object(objects$name[grep("Individual Profile Employment",objects$name)[1]], saveToDisk = file.path(wd,"data","boardex_individual_profiles_employment.dta"))
-    #unzip(file.path(wd,"data","boardex_individual_profiles_empolyment.zip"))
-    #file.rename(file.path(wd,"data","Individual Profile Employment 1933-01-2019-02.dta"),file.path(wd,"data","boardex_individual_profiles_employment.dta"))
+  if(!file.exists(file.path(wd,"Individual Profile Employment 1933-01-2019-02.dta"))){
+    gcs_get_object("Individual Profile Employment 1933-01-2019-02.dta", saveToDisk = file.path(wd,"Individual Profile Employment 1933-01-2019-02.dta"))
   }
-  boardex = read_dta(file.path(wd,"data","boardex_individual_profiles_employment.dta"))
+  
+  if(!file.exists(file.path(wd,"compustat_segments.dta"))){
+    gcs_get_object("Annual_Compensation_Execucomp.dta", saveToDisk = file.path(wd,"compustat_segments.dta"))
+  }
+  if(!file.exists(file.path(wd,"1970_2022_Compustat.dta"))){
+    gcs_get_object("1970_2022_Compustat.dta", saveToDisk = file.path(wd,"1970_2022_Compustat.dta"))
+  }
+  #########Read in data##########
+  #######GAI Data##############
+  comp <- read_dta(file.path(wd,"1970_2022_Compustat.dta"))
+  boardex = read_dta(file.path(wd,"boardex_individual_profiles_employment 1933-01-2019-02.dta.dta"))
+  boardex = boardex %>% filter(Orgtype == "Quoted")
+  compustat_segments = read_dta(file.path(wd,"compustat_segments.dta"))
   print(dim(boardex))
+  #######Compustat segments#######
+  compustat_segments <- compustat_segments %>% mutate(year = year(datadate)) %>% select(gvkey, year, snms) 
+  compustat_segments <- compustat_segments %>% arrange(gvkey, year) %>% group_by(gvkey, year) %>% summarise(Countsegments = length(unique(snms))) %>% ungroup()
+  compustat_segments <- compustat_segments %>% arrange(gvkey, year) %>% mutate(conglomerate = ifelse(Countsegments > 1, 1, 0))
+  #######compustat#############
+  comp <- comp %>% mutate(cusip6= substr(cusip,1,6))
+  comp <- comp %>% rename(year = fyear)
+  comp_ids <- comp %>% select(gvkey, conm, cusip, cusip6, year, sic, sich)
+  comp_ids <- comp_ids %>% mutate(cusip_country = "US")
   #####SETWD######
-  source(file.path(wd,"functions","expandpanalbaordex.R"))
-  source(file.path(wd,"functions","split_index.R"))
-  source(file.path(wd,"functions","split_rolename.R"))
-  source(file.path(wd,"functions","split_sector.R"))
+  source(file.path(wd,"boardex","functions","expandpanalbaordex.R"))
+  source(file.path(wd,"boardex","functions","split_index.R"))
+  source(file.path(wd,"boardex","functions","split_rolename.R"))
+  source(file.path(wd,"boardex","functions","split_sector.R"))
+  source(file.path(wd,"boardex","functions","gai_industries_conglomerate.R"))
   ##############
   list.of.sequences <- list()
   steps = 100
   jmp = round(nrow(boardex)/steps)
   for(i in 1:(steps-1)){
-    list.of.sequences[[i]] = seq(1+(i-1)*jmp,1+i*jmp)
+    list.of.sequences[[i]] = seq(1+(i-1)*jmp,i*jmp)
   }
   list.of.sequences[[steps]] = seq(1+(steps-1)*jmp,nrow(boardex))
   list.of.dt <- list()
@@ -73,9 +93,18 @@ list.of.dt <- future_lapply(list.of.dt, bind_rows)
 print("The sub list were binded")
 df <- list.of.dt %>% bind_rows() %>% splt_role_name()
 print("the final dataframe has the size")
-print(dim(df))
-df_factors <- gai_func(rd = T, dt = df)
-upload_gcs_from_file(authfile="~/gai/fluted-century-372700-7fbd134783e5.json",bucket = "corporate-finance-data",pth = "~",nm = "gai_factors2.rds")
+df <- df %>% mutate(cusip9 = substr(isin,3,11))
+df <- df %>% mutate(cusip6= substr(isin,3,8))
+df <- df %>% mutate(cusip_country = substr(isin,1,2))
+df <- df %>% mutate(companyid = as.numeric(companyid))
+df <- df %>% mutate(directorid = as.numeric(directorid))
+df <- df %>% group_by(directorid) %>% mutate(ceo = max(ceo_dummy)) %>% ungroup()
+gai_comp <- merge(comp_ids, df, by = c("cusip6", "year", "cusip_country"), all.y = T)
+gai_comp_seg <- merge(gai_comp, compustat_segments, by = c("gvkey", "year"), all.x = T)
+saveRDS(gai_comp_seg,"gai_comp_seg.rds")
+print(dim(gai_comp_seg))
+df_factors <- gai_func(rd = F, dt = gai_comp_seg)
+upload_gcs_from_file(authfile=authfile,bucket = "corporate-finance-data",pth = "~",nm = "gai_factors.rds")
 
 
 
