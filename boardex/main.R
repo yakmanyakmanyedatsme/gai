@@ -5,10 +5,15 @@ if (length(args)==0) {
 }else if(length(args) > 0 & length(args) < 3){
   wd = args[1]
   authfile = args[2]
+}else if(length(args) == 3){
+  wd = args[1]
+  authfile = args[2]
+  skp_splt_ind = as.logical(args[3])
 }else{
   wd = args[1]
   authfile = args[2]
   skp_splt_ind = as.logical(args[3])
+  brk = as.logical(args[4])
 }
 list.of.packages <- c("tidyr", "stringi", "dplyr", "purrr","future.apply","rlang",
                       "data.table", "haven", "readxl", "lubridate", "googleCloudStorageR")
@@ -46,13 +51,21 @@ if(skp_splt_ind == F){
   if(!file.exists(file.path(wd,"1970_2022_Compustat.dta"))){
     gcs_get_object("1970_2022_Compustat.dta", saveToDisk = file.path(wd,"1970_2022_Compustat.dta"))
   }
+  if(!file.exists(file.path(wd,"compustat_global_ids.rds"))){
+    gcs_get_object("compustat_global_ids.rds", saveToDisk = file.path(wd,"compustat_global_ids.rds"))
+  }
+  
   #########Read in data##########
   #######GAI Data##############
+  compustat_global_ids = readRDS(file.path(wd,"compustat_global_ids.rds"))
   comp <- read_dta(file.path(wd,"1970_2022_Compustat.dta"))
   boardex = read_dta(file.path(wd,"boardex_individual_profiles_employment 1933-01-2019-02.dta.dta"))
   boardex = boardex %>% filter(Orgtype == "Quoted")
   compustat_segments = read_dta(file.path(wd,"compustat_segments.dta"))
   print(dim(boardex))
+  #######Compustat Global#######
+  compustat_global_ids <- compustat_global_ids %>% rename(year = fyear)
+  compustat_global_ids <- compustat_global_ids %>% select(gvkey, conm, isin, year, sic, sich)
   #######Compustat segments#######
   compustat_segments <- compustat_segments %>% mutate(year = year(datadate)) %>% select(gvkey, year, snms) 
   compustat_segments <- compustat_segments %>% arrange(gvkey, year) %>% group_by(gvkey, year) %>% summarise(Countsegments = length(unique(snms))) %>% ungroup()
@@ -67,7 +80,8 @@ if(skp_splt_ind == F){
   source(file.path(wd,"gai","boardex","functions","split_index.R"))
   source(file.path(wd,"gai","boardex","functions","split_rolename.R"))
   source(file.path(wd,"gai","boardex","functions","split_sector.R"))
-  source(file.path(wd,"gai","boardex","functions","gai_industries_conglomerate.R"))
+  source(file.path(~,"gai","boardex","functions","gai_industries_conglomerate.R"))
+  source(file.path(~,"gai","boardex","functions","gai.R"))
   ##############
   list.of.sequences <- list()
   steps = 100
@@ -98,13 +112,29 @@ df <- df %>% mutate(cusip6= substr(isin,3,8))
 df <- df %>% mutate(cusip_country = substr(isin,1,2))
 df <- df %>% mutate(companyid = as.numeric(companyid))
 df <- df %>% mutate(directorid = as.numeric(directorid))
-df <- df %>% group_by(directorid) %>% mutate(ceo = max(ceo_dummy)) %>% ungroup()
+print(dim(df))
+`%!in%` <- Negate(`%in%`)
 save.image(file.path(wd,"data/","boardex_gai.RData"))
-gai_comp <- merge(comp_ids, df, by = c("cusip6", "year", "cusip_country"), all.y = T)
-gai_comp_seg <- merge(gai_comp, compustat_segments, by = c("gvkey", "year"), all.x = T)
-saveRDS(gai_comp_seg,"gai_comp_seg.rds")
-print(dim(gai_comp_seg))
-df_factors <- gai_func(rd = F, dt = gai_comp_seg)
+rm(list= ls()[!(ls() %in% c('comp_ids','df','compustat_global_ids', 'compustat_segments'))])
+sort(sapply(ls(), function(x) {object.size(get(x))})) 
+compustat_global_ids2 <- compustat_global_ids %>% filter(isin %in% unique(df$isin))
+save.image("problematic_data.RData")
+gcs_upload(file = "problematic_data.RData",predefinedAcl = "bucketLevel",upload_type = "simple")
+if(bk == T){
+  break
+}
+sort(sapply(ls(), function(x) {object.size(get(x))})) 
+compustat_global_ids <- compustat_global_ids %>% filter(isin %in% unique(df$isin))
+gai_comp_us <- inner_join(comp_ids, df, by = c("cusip6", "year", "cusip_country"), multiple = "all")
+gai_comp_int <- inner_join(compustat_global_ids, df, by = c("isin","year"), multiple = "all")
+rm(list= ls()[!(ls() %in% c('gai_comp_int','gai_comp_us', 'compustat_segments'))])
+isin_unique = c(unique(gai_comp_us$isin, gai_comp_int$isin))
+df_isin_not_in_other <- df %>% filter(isin %!in% isin_unique)
+dim(df_isin_not_in_other)
+gai_comp <- list(gai_comp_us, gai_comp_int, df_isin_not_in_other) %>% rbindlist(fill = T)
+#df <- df %>% group_by(directorid) %>% mutate(ceo = max(ceo_dummy)) %>% ungroup()
+save.image(file.path(wd,"data/","boardex_gai_stage2.RData"))
+df_factors <- gai_func(rd = F, dt = gai_comp)
 upload_gcs_from_file(authfile=authfile,bucket = "corporate-finance-data",pth = "~",nm = "gai_factors.rds")
 
 

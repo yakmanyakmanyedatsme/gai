@@ -17,12 +17,21 @@ library("data.table")
 ```{r}
 #
 `%!in%` <- Negate(`%in%`)
-df <- fread("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_data_segments_sic.csv")
-ids = unique(df$directorid)[1:5]
-dftemp <- df %>% filter(orgtype == "Quoted" | directorid == 1197930)
-dftemp2 <- data.table(head(dftemp,100000))
-dftemp3 <- df %>% filter(directorid == 1197930)
-dftemp2 <- data.table(rbind(dftemp2,dftemp3))
+#df <- fread("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_data_segments_sic.csv")
+df <- readRDS("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_and_ids.rds")
+indx1 = unique(df$rolename[grep(paste(c("Chief Executive", "CEO", "ceo"), collapse="|"),df$rolename)])
+indx2 = c("Assistant Divisional Chief Executive", "Regional Chief Executive", "Chief Executive Janitor")
+df <- df %>% mutate(companyid = as.numeric(companyid))
+df <- df %>% mutate(directorid = as.numeric(directorid))
+df <- df %>% group_by(directorid) %>% mutate(ceo = max(ceo_exp_dummy)) %>% ungroup()
+gai_ceo <- gai %>% filter(ceo == 1)
+gai_ceo <- gai_ceo %>% filter(rolename %in% indx1 & rolename %!in% indx2)
+df <- df[which(c(1:nrow(df)) %!in% grep(paste(c("Division", "Regional","Deputy"), collapse="|"),df$rolename)),]
+#ids = unique(df$directorid)[1:5]
+#dftemp <- df %>% filter(orgtype == "Quoted", directorid == 315)
+#dftemp2 <- data.table(head(dftemp,100000))
+#dftemp3 <- df %>% filter(directorid == 1197930)
+#dftemp2 <- data.table(rbind(dftemp2,dftemp3))
 ```
 
 Read in data
