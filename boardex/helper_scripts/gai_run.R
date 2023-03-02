@@ -22,8 +22,8 @@ gcs_global_bucket("corporate-finance-data 1")
 #####GCE Boardex#####
 source(file.path(wd,"gai","boardex","functions","gai_industries_conglomerate.R"))
 source(file.path(wd,"gai","boardex","functions","gai.R"))
-bucket_info <- gcs_get_bucket("corporate-finance-data-2")
-objects <- gcs_list_objects("corporate-finance-data-2")
+bucket_info <- gcs_get_bucket("corporate-finance-data 1")
+objects <- gcs_list_objects("corporate-finance-data 1")
 print(objects)
 if(!file.exists(file.path(wd,"boardex_gai_stage2_full.RData"))){
   gcs_get_object("boardex_gai_stage2_full.RData", saveToDisk = file.path(wd,"boardex_gai_stage2_full.RData"))
