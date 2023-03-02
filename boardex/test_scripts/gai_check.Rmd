@@ -15,18 +15,49 @@ library("data.table")
 ```
 
 ```{r}
-#
+load("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\boardex_gai_stage2_full.RData")
+df_ids <- readRDS("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\df2_boardex_expanded_simple_rolenames_org_type_Quoted.rds")
+df_ids <- df_ids %>% select(directorid, companyid, year, rolename, isin) %>% distinct()
+gai_comp_seg <- gai_comp_seg
+gai_comp_seg_ids <- gai_comp_seg %>% select(gvkey, year, conm, sic, isin, directorid, companyid, directorname, companyname, Countsegments)  %>% distinct()
+```
+
+
+```{r}
+dat_bdx <- read_dta("C:\\Users\\wfran\\Dropbox\\Data\\Boardex\\Individual Profile Employment 1933-01-2019-02.dta")
+```
+
+
+```{r}
+execucomp <- read_dta("C:\\Users\\wfran\\Dropbox\\Data\\Compustat\\Execucomp\\dta\\Annual_Compensation_Execucomp.dta")
+colnames(execucomp) <- tolower(colnames(execucomp))
+execucomp <- execucomp %>% mutate(execid = as.numeric(execid))
+execucomp <- execucomp %>% mutate(gvkey = as.numeric(gvkey))
+execucomp_ceo <- execucomp %>% filter(ceoann == "CEO")
+```
+
+
+```{r}
 `%!in%` <- Negate(`%in%`)
 #df <- fread("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_data_segments_sic.csv")
-df <- readRDS("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_and_ids.rds")
+#df <- readRDS("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\gai_factors_and_ids.rds")
+df <- readRDS("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\Data\\factors_int_full.rds")
+df <- merge(df, df_ids, by = c("companyid","directorid","year"))
+df <- merge(gai_comp_seg_ids, df, by = c("directorid","companyid", "isin","year"))
+df <- df %>% mutate(gvkey = as.numeric(gvkey))
+df <- df %>% filter(!is.na(gvkey))
+df <- df %>% filter(year < 2020, year > 1991)
+dft <- df %>% distinct()
+#########break to compare gvkeys
 indx1 = unique(df$rolename[grep(paste(c("Chief Executive", "CEO", "ceo"), collapse="|"),df$rolename)])
 indx2 = c("Assistant Divisional Chief Executive", "Regional Chief Executive", "Chief Executive Janitor")
 df <- df %>% mutate(companyid = as.numeric(companyid))
 df <- df %>% mutate(directorid = as.numeric(directorid))
 df <- df %>% group_by(directorid) %>% mutate(ceo = max(ceo_exp_dummy)) %>% ungroup()
-gai_ceo <- gai %>% filter(ceo == 1)
-gai_ceo <- gai_ceo %>% filter(rolename %in% indx1 & rolename %!in% indx2)
+df <- df %>% filter(ceo == 1)
+df <- df %>% filter(rolename %in% indx1 & rolename %!in% indx2)
 df <- df[which(c(1:nrow(df)) %!in% grep(paste(c("Division", "Regional","Deputy"), collapse="|"),df$rolename)),]
+
 #ids = unique(df$directorid)[1:5]
 #dftemp <- df %>% filter(orgtype == "Quoted", directorid == 315)
 #dftemp2 <- data.table(head(dftemp,100000))
@@ -34,12 +65,24 @@ df <- df[which(c(1:nrow(df)) %!in% grep(paste(c("Division", "Regional","Deputy")
 #dftemp2 <- data.table(rbind(dftemp2,dftemp3))
 ```
 
+
+```{r}
+dt1 = merge(df,execucomp_ceo, by=c("gvkey","year"))
+dft1 = merge(dft,execucomp_ceo, by=c("gvkey","year"))
+```
+
+
+
+```{r}
+dft1 <- dft1 %>% mutate(execid_gvkey_year = paste(execid,gvkey,year,sep = "_"))
+```
+
+
+
 Read in data
 
 ```{r}
 gai <- read_dta("C:\\Users\\wfran\\Dropbox\\Research Projects\\Banking\\Projects\\generalist vs specialist and bank risk taking\\Data\\preliminary\\gai_with_components_1992_2016.dta")
-execucomp <- read_dta("C:\\Users\\wfran\\Dropbox\\Data\\Compustat\\Execucomp\\dta\\Annual_Compensation_Execucomp.dta")
-colnames(execucomp) <- tolower(colnames(execucomp))
 bhc <- read_dta("C:\\Users\\wfran\\Dropbox\\Research Projects\\Banking\\Data\\BHC\\bhc_select_with_ids.dta")
 ```
 
@@ -47,11 +90,41 @@ bhc <- read_dta("C:\\Users\\wfran\\Dropbox\\Research Projects\\Banking\\Data\\BH
 execucomp <- execucomp %>% mutate(execid = as.numeric(execid))
 execucomp <- execucomp %>% mutate(gvkey = as.numeric(gvkey))
 execucomp_ceo <- execucomp %>% filter(ceoann == "CEO")
-dt <- merge(gai,execucomp_ceo, by=c("gvkey","execid","year"))
-dt <- dt %>% select(gvkey, execid,exec_fullname, titleann ,year, Pastceodum, Countsic4, Countpastfirms, Countpastpos, Ceodivdummypp, GAI)
-dtceo <- merge(dftemp, dt,by=c("gvkey","year"))
-
+dt2 <- merge(gai,execucomp_ceo, by=c("gvkey","execid","year"))
+dt2 <- dt2 %>% select(gvkey, execid,exec_fullname, titleann,year, Pastceodum, Countsic4, Countpastfirms, Countpastpos, Ceodivdummypp, GAI)
+#dtceo <- merge(dftemp, dt,by=c("gvkey","year"))
 ```
+
+```{r}
+gai_bth <- merge(gai, dt1, by = c("gvkey", "year", "execid"))
+gai_bth_ids <- gai_bth %>% select(year,gvkey,execid) %>% distinct()
+```
+
+
+```{r}
+View(gai_bth %>% select(gvkey, year,directorid, execid, directorname, exec_fullname,rolename,titleann, Pastceodum,ceo_exp_dummy, Countsic4, count_industries, Countpastfirms.x, Countpastfirms.y, Countpastpos, Countpastpositions, conglomerate_exp) %>% arrange(gvkey,directorid,year))
+```
+
+
+```{r}
+gai_ids <- gai %>% select(execid,gvkey,year) %>% filter(!is.na(year)) %>% distinct() %>% arrange(gvkey, year) %>% mutate(execid_gvkey_year = paste(execid,gvkey,year,sep = "_"))
+gai_bth_ids <- gai_bth_ids %>% mutate(execid_gvkey_year = paste(execid,gvkey,year,sep = "_"))
+gai_ids_non <- gai_ids %>% filter(execid_gvkey_year %!in% unique(gai_bth_ids$execid_gvkey_year))
+```
+
+```{r}
+dft1 <- dft1 %>% filter(execid_gvkey_year %in% unique(gai_ids_non$execid_gvkey_year)) %>% relocate(execid,exec_fullname, titleann, rolename, directorname)
+indx1 = unique(dft1$rolename[grep(paste(c("Chief Executive", "CEO", "ceo"), collapse="|"),dft1$rolename)])
+indx2 = c("Assistant Divisional Chief Executive", "Regional Chief Executive", "Chief Executive Janitor")
+dft1 <- dft1 %>% filter(rolename %in% indx1 & rolename %!in% indx2)
+View(dft1)
+```
+
+```{r}
+execucomp <- execucomp %>% mutate(execid_gvkey_year = paste(execid,gvkey,year,sep = "_"))
+View(merge(execucomp, gai_ids_non, by = c("execid_gvkey_year")) %>% relocate(titleann, conameVie))
+```
+
 
 ```{r}
 source("C:\\Users\\wfran\\Dropbox\\Research Projects\\Executives\\projects\\extract ceos\\functions\\split_rolename.R")
@@ -63,4 +136,5 @@ dtceo$directorname[1]
 ```{r}
 View(dtceo %>% select(gvkey, execid,exec_fullname, directorname4, titleann ,year, Pastceodum, Countsic4, Countpastfirms.x,Countpastfirms.y, Countpastpos, Countpastpositions,Ceodivdummypp, GAI))
 ```
+
 
