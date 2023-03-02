@@ -16,9 +16,9 @@ print("the setwd worked")
 ######GCE Authentication#######
 a = Sys.time()
 Sys.setenv("GCS_AUTH_FILE" = authfile)
-Sys.setenv("GCS_DEFAULT_BUCKET"="corporate-finance-data-2")
+Sys.setenv("GCS_DEFAULT_BUCKET"="corporate-finance-data 1")
 gcs_auth(email = "wakaflocka12211@gmail.com")
-gcs_global_bucket("corporate-finance-data-2")
+gcs_global_bucket("corporate-finance-data 1")
 #####GCE Boardex#####
 source(file.path(wd,"gai","boardex","functions","gai_industries_conglomerate.R"))
 source(file.path(wd,"gai","boardex","functions","gai.R"))
@@ -28,4 +28,8 @@ print(objects)
 if(!file.exists(file.path(wd,"boardex_gai_stage2_full.RData"))){
   gcs_get_object("boardex_gai_stage2_full.RData", saveToDisk = file.path(wd,"boardex_gai_stage2_full.RData"))
 }
+load(file.path(wd,"boardex_gai_stage2_full.RData"))
+df_factors <- gai_func(rd = F, dt = gai_comp_seg) %>% distinct()
+saveRDS(df_factors,"factors_int_full.rds")
+gcs_upload(file = "factors_int_full.rds",predefinedAcl = "bucketLevel",upload_type = "simple")
 
